@@ -2,25 +2,39 @@
 
 Run your own apps on a **reMarkable 2** without giving up the tablet.
 
-Hold **4 fingers flat on the screen for ~1.2 s**:
+**Touch the top-left and bottom-right corners at the same time and hold
+~1.2 s**:
 
 - in the stock UI → an **Apps** page opens
 - in one of your apps → you go back to the stock UI
+
+![Trigger areas](docs/trigger-areas.png)
+
+Each corner zone is **450 × 450 px** (about 50 × 50 mm — a comfortable thumb
+target you can find without looking), and the two are diagonally opposite on
+purpose: **a hand resting on the panel while you write covers one contiguous
+area and physically cannot reach both.** An earlier version triggered on "4
+fingers held", which fired constantly from writing posture — a resting palm
+easily reports four or more contacts.
+
+Zone size is configurable (`--corner-size`), and the daemon logs the exact
+zones it armed with, plus each corner entry/exit, so you can confirm they are
+where you expect.
 
 No PC needed once installed, and no icon to look for — reMarkable's UI has no
 concept of third-party apps, and only one process can own the e-paper display
 at a time, so an app *replaces* the stock UI rather than living inside it.
 This project is the doorway between them.
 
-Stock `xochitl` uses only 1-, 2- and 3-finger gestures, so a 4-finger hold can
-never collide with built-in behaviour.
+Stock `xochitl` has no two-corner gesture, so this cannot collide with
+built-in behaviour.
 
 ## What's here
 
 ```
 switcher/            the gesture daemon (plain C, no Qt)
   modeswitchd.c      passive evdev reader
-  gesture.c/.h       hold-detection state machine (host-unit-tested)
+  gesture.c/.h       two-zone hold detection (host-unit-tested)
   test_gesture.c     the unit tests
   uinject.c          virtual touchscreen, for testing without fingers
   peninject.c        virtual pen digitizer, same idea
@@ -108,15 +122,27 @@ screen_y = 1872 - raw_ABS_X * 1872 / 20966
 pen down  = BTN_TOUCH (not pressure > 0)
 ```
 
+The **touch** panel differs from the pen: it reports X directly but Y
+bottom-to-top, so the daemon maps `screen_y = max_y - raw_y` (disable with
+`--no-flip-y` if a future panel differs).
+
 ## Testing without fingers
 
 ```bash
 ./tools/switcher.py test
 ```
 
-Creates a virtual multitouch device via `/dev/uinput`, presses four synthetic
-fingers, and verifies the daemon fires. The detection state machine also has
-plain host-side tests:
+Creates a virtual multitouch device via `/dev/uinput` and verifies the daemon
+fires. The injector can also reproduce the two cases that matter:
+
+```bash
+./uinject corners 2500     # both corners  -> must trigger
+./uinject palm 3000        # writing posture, 5 contacts, one in a corner
+                           #                -> must NOT trigger
+```
+
+The detection state machine also has plain host-side tests, including that
+palm-rejection case:
 
 ```bash
 gcc -O2 -Wall switcher/gesture.c switcher/test_gesture.c -o /tmp/tg && /tmp/tg
@@ -132,8 +158,8 @@ reads evdev itself.
 **passively**. evdev delivers a copy of every event to every reader and
 neither xochitl nor Qt holds an exclusive grab (verified with `EVIOCGRAB`), so
 the daemon coexists with whatever is on screen and can never interfere with
-input. Four or more contacts held 1.2 s run `mode-toggle.sh`, which stops the
-current UI, waits for the framebuffer lock to be released, and starts the
+input. A contact inside each corner zone, held together for 1.2 s, runs
+`mode-toggle.sh`, which stops the current UI, waits for the framebuffer lock to be released, and starts the
 launcher or restores the tablet. There is a 3 s cooldown, `SYN_DROPPED` resets
 cleanly, and the daemon survives device re-enumeration.
 
