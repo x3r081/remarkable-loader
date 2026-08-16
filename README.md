@@ -83,7 +83,10 @@ completely. Other commands: `status`, `logs`, `screenshot`, and `test`.
 
 1. Build a binary that owns the display via `-platform epaper`.
 2. Give it a wrapper that restores `xochitl` when it exits — from a shell
-   `trap`, so a crash or a killed process still brings the tablet back.
+   `trap`, so a crash or a killed process still brings the tablet back. Use
+   **`systemctl --no-block start xochitl`**, and add
+   `ExecStopPost=/bin/systemctl --no-block start xochitl` plus a short
+   `TimeoutStopSec=` to the unit — see the deadlock warning below.
 3. Add it to `switcher/apps.json`:
 
 ```json
@@ -103,6 +106,18 @@ stock UI and starts the launcher — which cannot get the lock and aborts.
 reboots**. Listing your app makes the gesture mean "go back to the tablet"
 while it is running. The script also refuses to open the launcher while
 anything still holds the display.
+
+### Never block while restoring the UI
+
+A wrapper that calls a plain, blocking `systemctl start xochitl` from its exit
+trap **deadlocks** when systemd is stopping that same unit: the call waits for
+a job systemd will not schedule until the stop completes. Nothing happens
+until `TimeoutStopSec` (90 s by default) force-kills the unit — and because
+the app is already gone, its last frame sits frozen on the e-paper for the
+whole timeout, which looks exactly like a hang waiting for a reboot.
+
+Use `--no-block` in the trap, let `ExecStopPost=` do the restore, and cap
+`TimeoutStopSec` so a wedged exit can never hold the screen for long.
 
 ## Pen support
 
