@@ -1,0 +1,7 @@
+[
+    {
+        "name": "AI Chat",
+        "description": "Handwrite to any OpenAI-compatible model. 4-finger hold returns to the tablet.",
+        "exec": "systemctl start rm-chat.service"
+    }
+]

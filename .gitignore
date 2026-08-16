@@ -1,0 +1,25 @@
+# build output
+build/
+*.o
+*.so
+*.a
+
+# device/runtime state - MAY CONTAIN CREDENTIALS
+config.json
+history.json
+*.apikey
+.apikey
+
+# local secrets
+.env
+*.local
+
+# editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# screenshots and scratch
+*.png
+!docs/*.png

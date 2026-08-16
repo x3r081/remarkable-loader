@@ -1,0 +1,16 @@
+[Unit]
+Description=reMarkable mode-switch gesture daemon (4-finger hold)
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/home/root/apps/modeswitchd
+Restart=always
+RestartSec=5
+# The toggle script (and the launcher it runs) are forked children of the
+# daemon. KillMode=process makes a daemon restart kill only the daemon itself,
+# never a mode switch that is in flight.
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
