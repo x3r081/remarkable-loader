@@ -2,32 +2,54 @@
 
 Run your own apps on a **reMarkable 2** without giving up the tablet.
 
-**Touch the top-left and bottom-right corners at the same time and hold
-~1.2 s**:
+## How to trigger the loader
 
-- in the stock UI → an **Apps** page opens
-- in one of your apps → you go back to the stock UI
+**Put one finger in the top-left corner and another in the bottom-right
+corner at the same time, and hold for about 1.2 seconds.**
+
+| Where you are | What the gesture does |
+|---|---|
+| The stock reMarkable UI | Opens the **Apps** page — tap an app, or **Back to tablet** |
+| Inside one of your apps | Returns you to the stock UI |
 
 ![Trigger areas](docs/trigger-areas.png)
 
-Each corner zone is **450 × 450 px** (about 50 × 50 mm — a comfortable thumb
-target you can find without looking), and the two are diagonally opposite on
-purpose: **a hand resting on the panel while you write covers one contiguous
-area and physically cannot reach both.** An earlier version triggered on "4
-fingers held", which fired constantly from writing posture — a resting palm
-easily reports four or more contacts.
+- Each corner zone is **450 × 450 px**, about **5 × 5 cm** — big enough to
+  find with a thumb without looking.
+- Order does not matter, and neither does which finger. Both corners simply
+  have to be touched *at the same time* for the full 1.2 s.
+- If you tap nothing on the Apps page, it returns you to the tablet after
+  120 s on its own.
+- There is **no icon to look for**. reMarkable's UI has no concept of
+  third-party apps, and only one process can own the e-paper display at a
+  time, so an app *replaces* the stock UI rather than living inside it. This
+  gesture is the only doorway between them.
 
-Zone size is configurable (`--corner-size`), and the daemon logs the exact
-zones it armed with, plus each corner entry/exit, so you can confirm they are
-where you expect.
+### Why two opposite corners
 
-No PC needed once installed, and no icon to look for — reMarkable's UI has no
-concept of third-party apps, and only one process can own the e-paper display
-at a time, so an app *replaces* the stock UI rather than living inside it.
-This project is the doorway between them.
+A hand resting on the panel while you write covers one contiguous area and
+**physically cannot reach both corners**. An earlier version triggered on "4
+fingers held" and fired constantly from normal writing posture, because a
+resting palm easily reports four or more contacts. Stock `xochitl` has no
+two-corner gesture either, so this cannot collide with built-in behaviour.
 
-Stock `xochitl` has no two-corner gesture, so this cannot collide with
-built-in behaviour.
+### Tuning it
+
+```bash
+modeswitchd --corner-size 600 --hold-ms 800     # bigger zones, quicker trigger
+```
+
+Zone size and hold time are both configurable, and the daemon logs the exact
+zones it armed with plus every corner entry/exit — so if a corner ever feels
+unresponsive, `./tools/switcher.py logs` shows whether your touch landed
+inside it:
+
+```
+armed - hold top-left (0,0)-(450,450) and bottom-right (953,1421)-(1403,1871)
+        together for 1200 ms [panel 1404x1872, flip_y=1]
+corners top-left=1 bottom-right=1 (2 contacts)
+gesture detected, running /home/root/apps/mode-toggle.sh
+```
 
 ## What's here
 
