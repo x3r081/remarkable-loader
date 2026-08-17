@@ -129,6 +129,16 @@ reboots**. Listing your app makes the gesture mean "go back to the tablet"
 while it is running. The script also refuses to open the launcher while
 anything still holds the display.
 
+### Mode is decided by who owns the display
+
+`mode-toggle.sh` decides "am I in the tablet or in an app?" from whether
+`xochitl` is running — **not** from whether an app process exists somewhere.
+A stray background process (a leftover test run, a crashed app that was never
+reaped) would otherwise make every gesture mean "leave the app", silently
+disabling the launcher with no visible error. The script also clears stray
+app processes before opening the launcher, since they would fight it for the
+display lock.
+
 ### Never block while restoring the UI
 
 A wrapper that calls a plain, blocking `systemctl start xochitl` from its exit

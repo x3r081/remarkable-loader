@@ -1,15 +1,15 @@
 #!/bin/sh
-# Runs on the reMarkable when the 4-finger hold gesture fires.
+# Runs on the reMarkable when the trigger gesture fires.
 #
-#   in any of our apps -> stop it (its wrapper restores xochitl)
-#   in the launcher    -> ignore (the launcher has its own buttons)
-#   in the tablet UI   -> open the launcher; the user picks an app or goes back
+#   in the stock UI  -> open the launcher; the user picks an app or goes back
+#   in an app        -> stop it (its wrapper restores xochitl)
+#   in the launcher  -> ignore (the launcher has its own buttons)
 #
-# CRITICAL: every app that owns the e-paper display must be listed in
-# KNOWN_APPS. Only one process can hold /tmp/epframebuffer.lock; if this
-# script opens the launcher while an app still holds it, the launcher aborts,
-# xochitl then cannot start either, systemd crash-loops it and the device
-# REBOOTS. That is exactly what an unlisted app caused.
+# Which mode we are in is decided by WHO OWNS THE DISPLAY, i.e. whether
+# xochitl is running - not by whether an app process exists somewhere. A
+# stray background process (a leftover test run, a crashed app that never
+# reaped) would otherwise make every gesture mean "leave the app", silently
+# disabling the launcher with no visible error.
 set -u
 
 APPS_DIR="/home/root/apps"
@@ -29,23 +29,54 @@ if pidof rm_launcher >/dev/null 2>&1; then
     exit 0
 fi
 
-# In an app? Then this gesture means "back to the tablet".
+# ---------------------------------------------------------------- app mode
+if ! systemctl is-active --quiet xochitl; then
+    stopped=""
+    for entry in $KNOWN_APPS; do
+        proc=$(echo "$entry" | cut -d: -f1)
+        unit=$(echo "$entry" | cut -d: -f2)
+        if pidof "$proc" >/dev/null 2>&1; then
+            echo "[toggle] leaving $proc"
+            systemctl stop "$unit"          # wrapper trap restores xochitl
+            stopped="$proc"
+            # An app started by hand is not under the unit; make sure it goes.
+            i=0
+            while [ "$i" -lt 10 ]; do
+                pidof "$proc" >/dev/null 2>&1 || break
+                sleep 0.5
+                i=$((i + 1))
+            done
+            pidof "$proc" >/dev/null 2>&1 && killall "$proc" 2>/dev/null
+        fi
+    done
+
+    # Nothing of ours is running, yet xochitl is not either: the tablet has no
+    # UI at all. Restore it rather than leaving a dead screen.
+    if [ -z "$stopped" ]; then
+        echo "[toggle] no UI running, restoring the tablet"
+    fi
+    systemctl --no-block start xochitl
+    exit 0
+fi
+
+# ------------------------------------------------------------- tablet mode
+echo "[toggle] leaving tablet mode, opening launcher"
+
+# Defensive: a stray app process from a crashed or hand-started run would
+# fight the launcher for the display lock.
 for entry in $KNOWN_APPS; do
     proc=$(echo "$entry" | cut -d: -f1)
-    unit=$(echo "$entry" | cut -d: -f2)
     if pidof "$proc" >/dev/null 2>&1; then
-        echo "[toggle] leaving $proc"
-        systemctl stop "$unit"          # wrapper trap restarts xochitl
-        exit 0
+        echo "[toggle] clearing stray $proc before opening the launcher"
+        killall "$proc" 2>/dev/null
     fi
 done
 
-echo "[toggle] leaving tablet mode, opening launcher"
 systemctl stop xochitl
 
-# Wait for the display to actually be free. Checking xochitl alone is not
-# enough - any leftover app holding the framebuffer would make the launcher
-# abort and take the device down with it.
+# Wait for the display to actually be free. Only one process may hold
+# /tmp/epframebuffer.lock; starting the launcher too early makes it abort,
+# after which xochitl cannot start either and systemd crash-loops it.
 i=0
 while [ "$i" -lt 30 ]; do
     busy=""
@@ -60,9 +91,9 @@ while [ "$i" -lt 30 ]; do
 done
 
 if [ -n "$busy" ]; then
-    echo "[toggle] '$busy' still holds the display after 15s; aborting rather"
+    echo "[toggle] '$busy' still holds the display after 15s; aborting rather" >&2
     echo "         than starting a second one and crash-looping the device" >&2
-    systemctl start xochitl
+    systemctl --no-block start xochitl
     exit 1
 fi
 sleep 1
@@ -81,7 +112,7 @@ rm -f "$CHOICE_FILE"
 case "$choice" in
     "" | tablet)
         echo "[toggle] back to tablet"
-        systemctl start xochitl
+        systemctl --no-block start xochitl
         ;;
     *)
         echo "[toggle] starting: $choice"
@@ -93,7 +124,7 @@ case "$choice" in
         done
         if ! sh -c "$choice"; then
             echo "[toggle] '$choice' failed, restoring tablet"
-            systemctl start xochitl
+            systemctl --no-block start xochitl
         fi
         ;;
 esac
